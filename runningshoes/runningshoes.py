@@ -1,3 +1,5 @@
+from __future__ import division, print_function
+
 """runningshoes.py - RunningShoes class.
 """
 
@@ -63,7 +65,8 @@ class RunningShoes(object):
             to run those programs (ex. ['bash']) contained in lists. Defaults
             are provided in the default_extensions method. Any
         """
-        self.directory, self.files= directory, None
+        self.directory = self.ensure_trailing_slash(directory)
+        self.files = self.identify_files()
         self.extensions = self.default_extensions()
         if custom_extensions is not None:
             for k, v in custom_extensions.items():
@@ -75,6 +78,15 @@ class RunningShoes(object):
                 'initialized': time.strftime('%c')
             }
         }
+
+
+    @staticmethod
+    def ensure_trailing_slash(directory):
+        """Ensure a trailing slash in a directory location.
+        """
+        if directory[-1] != '/':
+            directory = directory + '/'
+        return directory
 
 
     @staticmethod
@@ -111,13 +123,12 @@ class RunningShoes(object):
         order which they should be run in.
         """
         files = os.listdir(self.directory)
-        files_orders = sorted([(self.should_we_run_this_file(f)[1], f) for f
+        files_orders = sorted([[self.should_we_run_this_file(f)[1], f] for f
                                in files if self.should_we_run_this_file(f)])
         orders, files = zip(*files_orders)
         if len(orders) != len(set(orders)):
             raise Exception('One or more files have the same integer prefix!')
-        self.files = files
-        return None
+        return files
 
 
     def run_file(self, file_name):
@@ -140,7 +151,7 @@ class RunningShoes(object):
                 'start_time': time.strftime('%c')
             }
             try:
-                self.run_file(file_name)
+                self.run_file(self.directory + file)
                 self.file_data['info'][file]['end_time'] = time.strftime('%c')
                 self.file_data['info'][file]['elapsed'] = \
                     (time.time() - start) / 60
@@ -153,33 +164,41 @@ class RunningShoes(object):
         return None
 
 
-    @staticmethod
     def format_file_data(self):
         """Formats a file_data dictionary into list of lists that can be nicely
         printed using the tabulate package.
         """
-        results = ['Order', 'FileName', 'StartTime', 'EndTime', 'Elapsed',
-                   'Success']
+        results = []
         success_string = {
             True: 'Success',
             False: 'Failure'}
-        for order, file in enumerate(self.files(), start = 1):
+        for order, file in enumerate(self.files, start = 1):
             if self.file_data['info'].get(file, None) is not None:
-                start_time = self.file_data['info']['file']['start_time']
-                end_time = self.file_data['info']['file']['end_time']
-                elapsed = self.file_data['info']['file']['elapsed']
-                ran = self.file_data['info']['file']['ran']
+                start_time = self.file_data['info'][file]['start_time']
+                end_time = self.file_data['info'][file]['end_time']
+                elapsed = self.file_data['info'][file]['elapsed']
+                ran = self.file_data['info'][file]['ran']
                 results.append([order, file, start_time, end_time, elapsed,
-                    ran])
+                    success_string[ran]])
             else:
-                results.append([order, file, 'NA', 'NA', 'NA', False])
+                results.append([order, file, 'NA', 'NA', 'NA', 'NA'])
         return results
 
 
-     def __str__(self):
-        return tabulate(self.file_data, headers = 'firstrow')
+    def pretty_file_data(self):
+        """Pretty version of file_data to be printed out.
+        """
+        headers = ['Order', 'File name', 'Start time', 'End time',
+                   'Time elapsed (mins)', 'Status']
+        return tabulate(self.format_file_data(), headers = headers,
+            tablefmt = 'psql')
 
-     __repr__ = __str__
+
+    def __str__(self):
+        return self.pretty_file_data()
+
+
+    __repr__ = __str__
 
 
     def run(self):
@@ -188,5 +207,5 @@ class RunningShoes(object):
         try:
             self.run_files()
         finally:
-            print(tabulate(self.file_data, headers = 'firstrow'))
+            print(self.pretty_file_data())
         return None
